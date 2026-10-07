@@ -10,6 +10,7 @@ public class ChimeForm : Form {
 "@
 $player = New-Object System.Windows.Media.MediaPlayer
 $player.Open([Uri]$env:CHIME_SOUND)
+$player.Volume = 1.0
 $player.Play()
 $form = New-Object ChimeForm
 $form.FormBorderStyle = 'None'
