@@ -17,8 +17,15 @@ function record(on: On, env: Record<string, string> = { OS: 'Windows_NT' }) {
     toasts: [] as string[],
     statuses: [] as (string | undefined)[],
     clips: [] as unknown[],
+    opened: [] as string[],
+    changes: [] as { key: string; value: unknown }[],
     runs: [] as { argv: readonly string[]; env?: Record<string, string> }[],
   }
+  // The engine beneath the mod: the settings command and pane, and /config writes.
+  on('command.register', (_$, e) => ({ value: { command: e.name } }) as never)
+  on('ui.open', (_$, e) => { seen.opened.push(e.id); return { value: { isPlaced: true } } as never })
+  on('ui.close', () => ({ value: undefined }) as never)
+  on('config.set', (_$, e) => { seen.changes.push({ key: e.key, value: e.value }); return { value: e.value } })
   on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }) as never)
   // The sound is a spawned child (it outlives the hook); record it and end it cleanly.
   on('process.spawn', async function* (_$, e) {
@@ -35,7 +42,7 @@ function record(on: On, env: Record<string, string> = { OS: 'Windows_NT' }) {
     const { Box } = $.ui.resolve(e)
     return <Box />
   })
-  return { ...seen, settle: () => clock.settle() }
+  return { ...seen, settle: () => clock.settle(), advance: (ms: number) => clock.advance(ms) }
 }
 
 describe('task-chime', () => {
@@ -79,7 +86,237 @@ describe('task-chime', () => {
     expect(seen.clips).toHaveLength(1)
   })
 
-  describe('visuals are off for now', () => {
+  describe('settings', () => {
+    const BAND = {
+      hasSurvey: false,
+      isWorking: false,
+      maxRows: 6,
+      bodyColumns: 80,
+      scroll: { offset: 0, bodyRows: 6 },
+      view: {},
+    } as const
+    const SHOWN = { type: 'Text', text: /Task complete/ } as const
+    const mountBand = ($: any) =>
+      $.ui.mount({ plugin: 'task-chime', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+    test('muted: no sound at all', { options: { muted: true } }, async ($, on) => {
+      const seen = record(on)
+
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      expect(seen.clips).toEqual([])
+      expect(seen.runs).toEqual([])
+    })
+
+    test('muted still shows the on-screen signals when they are on', { options: { muted: true, showVisuals: true } }, async ($, on) => {
+      const seen = record(on)
+
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      expect(seen.clips).toEqual([])
+      expect(seen.runs).toEqual([])
+      expect(seen.toasts).toEqual(['Task complete'])
+    })
+
+    test('volume is a percentage sent to the script as a fraction', { options: { volume: 50 } }, async ($, on) => {
+      const seen = record(on)
+
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      expect(seen.runs[0]?.env?.CHIME_VOLUME).toBe('0.5')
+    })
+
+    test('copies and lead-in reach the script', { options: { copies: 3, leadMs: 1500 } }, async ($, on) => {
+      const seen = record(on)
+
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      expect(seen.runs[0]?.env?.CHIME_COPIES).toBe('3')
+      expect(seen.runs[0]?.env?.CHIME_LEAD_MS).toBe('1500')
+    })
+
+    test('a lead-in of 0 is allowed', { options: { leadMs: 0 } }, async ($, on) => {
+      const seen = record(on)
+
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      expect(seen.runs[0]?.env?.CHIME_LEAD_MS).toBe('0')
+    })
+
+    test('on-screen signals on: toast and status line, status clears after five seconds', { options: { showVisuals: true } }, async ($, on) => {
+      const seen = record(on)
+
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+      expect(seen.toasts).toEqual(['Task complete'])
+      expect(seen.statuses).toEqual(['Task complete'])
+
+      await seen.advance(4999)
+      expect(seen.statuses).toEqual(['Task complete'])
+      await seen.advance(1)
+      expect(seen.statuses).toEqual(['Task complete', undefined])
+    })
+
+    test('on-screen signals on: banner appears with Dismiss, then clears after six seconds', { options: { showVisuals: true } }, async ($, on) => {
+      const seen = record(on)
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      const band = await mountBand($)
+      expect(await band.find(SHOWN)).toBeDefined()
+      expect(await band.find({ type: 'Button', key: 'dismiss' })).toBeDefined()
+
+      await seen.advance(6000)
+      const later = await mountBand($)
+      expect(await later.find(SHOWN)).toBeUndefined()
+    })
+
+    test('on-screen signals on: Dismiss hides the banner', { options: { showVisuals: true } }, async ($, on) => {
+      const seen = record(on)
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+      const band = await mountBand($)
+
+      await band.press({ key: 'dismiss' })
+
+      expect(await (await mountBand($)).find(SHOWN)).toBeUndefined()
+    })
+  })
+
+  describe('settings pane', () => {
+    const PANE_ID = 'task-chime-settings'
+    const PANE_PROPS = {
+      title: 'Task chime',
+      isFocused: false,
+      bodyColumns: 60,
+      placement: 'inline',
+      scroll: { offset: 0, bodyRows: 10 },
+      view: {},
+    } as const
+    const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
+    const mountPane = ($: any, surface: (typeof SURFACES)[number]) =>
+      $.ui.mount({ plugin: 'task-chime', surface, component: 'Pane', props: PANE_PROPS, requestId: PANE_ID })
+
+    test('/chime opens the pane', async ($, on) => {
+      const seen = record(on)
+
+      const result = await $.command.run({ command: 'chime', args: '', origin: { kind: 'composer' } })
+
+      expect(seen.opened).toEqual([PANE_ID])
+      expect(result.text).toMatch(/settings opened/i)
+    })
+
+    test('shows every setting and a button for it on every surface', async ($, on) => {
+      record(on)
+
+      for (const surface of SURFACES) {
+        const pane = await mountPane($, surface)
+        expect(await pane.find({ type: 'Text', text: /Sound: on/ })).toBeDefined()
+        expect(await pane.find({ type: 'Text', text: /Volume: 75/ })).toBeDefined()
+        expect(await pane.find({ type: 'Text', text: /Loudness boost: 2 copies/ })).toBeDefined()
+        expect(await pane.find({ type: 'Text', text: /wake-up delay: 1000 ms/ })).toBeDefined()
+        expect(await pane.find({ type: 'Text', text: /On-screen signals: off/ })).toBeDefined()
+        for (const key of ['mute', 'volume-down', 'volume-up', 'copies-down', 'copies-up', 'lead-down', 'lead-up', 'visuals', 'test']) {
+          expect(await pane.find({ type: 'Button', key })).toBeDefined()
+        }
+      }
+    })
+
+    test('Mute asks Claude Code to set muted to true', async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'mute' })
+
+      expect(seen.changes).toEqual([{ key: 'task-chime.muted', value: true }])
+    })
+
+    test('when muted the button says Unmute and sets it back', { options: { muted: true } }, async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+      expect(await pane.find({ type: 'Text', text: /Sound: muted/ })).toBeDefined()
+
+      await pane.press({ key: 'mute' })
+
+      expect(seen.changes).toEqual([{ key: 'task-chime.muted', value: false }])
+    })
+
+    test('Louder and Quieter move the volume by ten', async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'volume-up' })
+      await pane.press({ key: 'volume-down' })
+
+      expect(seen.changes).toEqual([
+        { key: 'task-chime.volume', value: 85 },
+        { key: 'task-chime.volume', value: 65 },
+      ])
+    })
+
+    test('volume stops at 100', { options: { volume: 100 } }, async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'volume-up' })
+
+      expect(seen.changes).toEqual([{ key: 'task-chime.volume', value: 100 }])
+    })
+
+    test('loudness boost moves by one and stays between 1 and 4', async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'copies-up' })
+      await pane.press({ key: 'copies-down' })
+
+      expect(seen.changes).toEqual([
+        { key: 'task-chime.copies', value: 3 },
+        { key: 'task-chime.copies', value: 1 },
+      ])
+    })
+
+    test('wake-up delay moves by 250 ms', async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'lead-up' })
+      await pane.press({ key: 'lead-down' })
+
+      expect(seen.changes).toEqual([
+        { key: 'task-chime.leadMs', value: 1250 },
+        { key: 'task-chime.leadMs', value: 750 },
+      ])
+    })
+
+    test('the on-screen signals button flips showVisuals', async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'visuals' })
+
+      expect(seen.changes).toEqual([{ key: 'task-chime.showVisuals', value: true }])
+    })
+
+    test('Play test chime plays the sound, even when muted', { options: { muted: true } }, async ($, on) => {
+      const seen = record(on)
+      const pane = await mountPane($, 'desktop')
+
+      await pane.press({ key: 'test' })
+      await seen.settle()
+
+      expect(seen.clips).toHaveLength(1)
+      expect(seen.runs).toHaveLength(1)
+      expect(seen.changes).toEqual([])
+    })
+  })
+
+  describe('visuals are off by default', () => {
     const BAND = {
       hasSurvey: false,
       isWorking: false,

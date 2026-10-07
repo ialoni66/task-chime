@@ -2,6 +2,6 @@ export type BannerFlag = boolean
 
 declare module 'claude-code' {
   interface PluginState {
-    'task-chime': { isBannerShown: BannerFlag }
+    'task-chime': { isBannerShown: BannerFlag; isSettingsOpen: boolean; note: string }
   }
 }

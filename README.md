@@ -4,7 +4,7 @@ A [Claude Code](https://claude.com/claude-code) mod that plays a short sound whe
 
 - Plays on every finished answer in the main conversation.
 - Stays quiet for interrupted turns, errors, and subagents.
-- Optional on-screen signals (a banner above the prompt, a toast, a status line entry), currently switched off.
+- Optional on-screen signals (a banner above the prompt, a toast, a status line entry), off by default.
 
 ## Requirements
 
@@ -47,21 +47,37 @@ The mod needs permission to start a local PowerShell process. Read `scripts/chim
 
 ## Settings
 
-Edit the constants at the top of `hooks/register.tsx`. The mod reloads when the file changes.
+Type `/chime` in Claude Code to open the settings pane. It shows each setting with buttons to change it, and a **Play test chime** button so you can hear the result straight away. Click a button, or give the pane focus (click it, or press `ctrl+x` then `tab`) and press its key:
+
+| Key | Action |
+|---|---|
+| `m` | Mute / unmute |
+| `1` / `2` | Quieter / louder |
+| `3` / `4` | Fewer / more loudness copies |
+| `5` / `6` | Shorter / longer Bluetooth wake-up delay |
+| `v` | Turn on-screen signals on / off |
+| `t` | Play test chime (plays even when muted) |
+
+The same settings are also rows in the `/config` menu in the terminal version of Claude Code. The desktop app has no `/config`, which is why the pane exists. Either way, changing a setting reloads the mod with the new value, and the pane reopens by itself.
 
 | Setting | Default | What it does |
 |---|---|---|
-| `SHOW_VISUALS` | `false` | `true` brings back the banner above the prompt, the toast, and the status line entry |
-| `VOLUME` | `0.75` | Volume of each copy, 0 to 1 |
-| `COPIES` | `2` | Identical copies played together for loudness, 1 to 4. More copies is louder but can distort. |
-| `LEAD_MS` | `1000` | Silence before the chime, in milliseconds. Raise it if a Bluetooth headset still misses the start. |
+| Mute the chime | off | Turns the sound off |
+| Chime volume (0-100) | 75 | Volume of each copy of the chime |
+| Loudness boost (1-4) | 2 | Identical copies played together. More is louder but can distort. |
+| Bluetooth wake-up delay (ms) | 1000 | Silence played before the chime, 0 to 3000. Raise it if a Bluetooth headset still misses the start. |
+| Show on-screen signals | off | Shows a banner above the prompt, a toast, and a status line entry |
+
+Values outside a setting's range are refused. The settings are also stored in your Claude Code settings under `pluginConfigs`, keyed by the plugin name.
+
+If you mute the chime and leave the on-screen signals off, nothing tells you a task finished. Turn on one of them.
 
 To use your own sound, replace `assets/notification.mp3`.
 
 ## Troubleshooting
 
-- **No sound at first after being idle:** Bluetooth headsets sleep. Raise `LEAD_MS` to 1500 or 2000.
-- **Too quiet or too loud:** change `VOLUME` or `COPIES`.
+- **No sound at first after being idle:** Bluetooth headsets sleep. Raise the Bluetooth wake-up delay to 1500 or 2000 in `/config`.
+- **Too quiet or too loud:** change the volume or loudness boost in `/config`.
 - **No sound at all:** check the Windows volume mixer for an entry called "PowerShell", and confirm the right output device is selected.
 - **A toast saying "Chime sound failed" or "could not start":** PowerShell may be blocked by a security policy on your machine.
 - **No sound right after editing the mod:** reloading the mod can cut off the sound for that one reply. The next reply is normal.

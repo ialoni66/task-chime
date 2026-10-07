@@ -28,7 +28,7 @@ claude-noti-mod/
 ## How it works (to verify while building)
 - Candidate trigger: the `turn.complete` event. Confirm it fires when a task finishes, not on every step (`turn.step`).
 - Sound: `$.audio.play` plays nothing on Windows/Linux, so on Windows `scripts/chime.ps1` (run via `$.process.spawn`) plays the mp3. `spawn`, not `run`: a plain `run` is cut off when the hook returns. A 1s silent lead-in wakes sleeping Bluetooth headsets.
-- Visuals are currently OFF (`SHOW_VISUALS = false` in register.tsx); the sound is the only signal. Visual: an `AbovePrompt` banner driven by the `isBannerShown` state (types/index.d.ts), plus `$.ui.toast` and `$.ui.status`. The app has no centered overlay, so the banner replaces the old PowerShell popup window. Everything clears after a few seconds.
+- Settings live in plugin.json `userConfig` (muted, volume, copies, leadMs, showVisuals); register(on, options) reads them once and a change reloads the mod. The desktop app has no /config, so the `/chime` command opens a settings pane (Buttons with hotkeys, a test-chime button) that calls $.config.set; terminal users also get the rows in /config. A reload closes the pane, so isSettingsOpen state reopens it at session.start. NOTE: $ may only be passed to top-level functions in register.tsx (validate enforces it). The engine enforces each setting's min/max. Visuals default OFF, so the sound is the only signal. Visual: an `AbovePrompt` banner driven by the `isBannerShown` state (types/index.d.ts), plus `$.ui.toast` and `$.ui.status`. The app has no centered overlay, so the banner replaces the old PowerShell popup window. Everything clears after a few seconds.
 - The API types are the source of truth. Grep them for the exact event and method names before using them.
 
 ## Commands
@@ -42,7 +42,7 @@ claude-noti-mod/
 - The visual must be readable without color: use words like "Task complete", not just a color or symbol.
 - Keep toasts short and do not flash or animate rapidly.
 - Provide a way to mute the sound (option or slash command).
-- Keep the sound short, not startling, and moderate in volume (`COPIES` and `VOLUME` in register.tsx). With visuals off, a mute option matters more: sound is the only signal.
+- Keep the sound short, not startling, and moderate in volume (volume and copies settings). A mute setting exists; warn users that muting with visuals off means no signal at all.
 
 ## Git conventions
 - Small, focused commits with clear messages.
@@ -54,6 +54,6 @@ claude-noti-mod/
 - [x] Confirm the completion event (turn.complete, main loop, reason "answer")
 - [x] Add sound
 - [x] Add on-screen effect
-- [ ] Add mute option
+- [x] Add mute option and a /config settings menu
 - [x] Write tests and validate
 - [x] README and license (MIT, code only; sound credited separately)

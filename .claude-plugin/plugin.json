@@ -1,7 +1,45 @@
 {
   "name": "task-chime",
-  "version": "0.3.2",
-  "description": "Plays a sound and shows a banner above the prompt when a task is complete.",
+  "version": "0.5.0",
+  "description": "Plays a sound, with optional on-screen signals, when a task is complete.",
   "author": { "name": "Ilai Aloni" },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "muted": {
+      "type": "boolean",
+      "title": "Mute the chime",
+      "description": "Turn the sound off. With the on-screen signals also off, nothing will tell you a task finished.",
+      "default": false
+    },
+    "volume": {
+      "type": "number",
+      "title": "Chime volume (0-100)",
+      "description": "Volume of each copy of the chime. Raise it if the chime is too quiet.",
+      "min": 0,
+      "max": 100,
+      "default": 75
+    },
+    "copies": {
+      "type": "number",
+      "title": "Loudness boost (1-4)",
+      "description": "Identical copies of the chime played together. More copies is louder but can distort.",
+      "min": 1,
+      "max": 4,
+      "default": 2
+    },
+    "leadMs": {
+      "type": "number",
+      "title": "Bluetooth wake-up delay (ms)",
+      "description": "Silence played before the chime so a sleeping Bluetooth headset can wake. 0 turns it off.",
+      "min": 0,
+      "max": 3000,
+      "default": 1000
+    },
+    "showVisuals": {
+      "type": "boolean",
+      "title": "Show on-screen signals",
+      "description": "Show a banner above the prompt, a toast, and a status line entry when a task finishes.",
+      "default": false
+    }
+  }
 }
