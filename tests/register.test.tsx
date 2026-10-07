@@ -18,7 +18,7 @@ function record(on: On) {
     runs: [] as { argv: readonly string[]; env?: Record<string, string> }[],
   }
   on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }) as never)
-  // The popup is a spawned child (it outlives the hook); record it and end it cleanly.
+  // The sound is a spawned child (it outlives the hook); record it and end it cleanly.
   on('process.spawn', async function* (_$, e) {
     seen.runs.push({ argv: e.argv, env: e.env })
     return { value: { code: 0, signal: null } }
@@ -28,24 +28,27 @@ function record(on: On) {
   on('ui.toast', (_$, e) => { seen.toasts.push(e.text); return { value: undefined } as never })
   on('ui.status', (_$, e) => { seen.statuses.push(e.text); return { value: undefined } as never })
   on('audio.play', (_$, e) => { seen.clips.push(e.clip); return { value: undefined } as never })
+  // Beneath the mod, the engine's own band: nothing to show, so an empty box.
+  on('ui.render', ($, e) => {
+    const { Box } = $.ui.resolve(e)
+    return <Box />
+  })
   return seen
 }
 
 describe('task-chime', () => {
-  test('a finished answer shows the message and plays the sound', async ($, on) => {
+  test('a finished answer plays the sound', async ($, on) => {
     const seen = record(on)
     mock.clock(on)
 
     const result = await $.turn.complete({ ...TURN })
 
     expect(result.text).toBe('done')
-    expect(seen.toasts).toEqual(['Task complete'])
-    expect(seen.statuses).toEqual(['Task complete'])
     expect(seen.clips).toHaveLength(1)
     expect(seen.clips[0]).toMatchObject({ asset: 'assets/notification.mp3' })
   })
 
-  test('a finished answer opens the centered popup with the sound file', async ($, on) => {
+  test('a finished answer runs the sound script with the mp3, lead-in and volume', async ($, on) => {
     const seen = record(on)
     mock.clock(on)
 
@@ -54,20 +57,49 @@ describe('task-chime', () => {
     expect(seen.runs).toHaveLength(1)
     expect(seen.runs[0]?.argv[0]).toBe('powershell.exe')
     expect(seen.runs[0]?.env?.CHIME_SOUND).toMatch(/assets[\\/]notification\.mp3$/)
+    expect(Number(seen.runs[0]?.env?.CHIME_LEAD_MS)).toBeGreaterThan(0)
+    expect(Number(seen.runs[0]?.env?.CHIME_COPIES)).toBeGreaterThanOrEqual(1)
+    const volume = Number(seen.runs[0]?.env?.CHIME_VOLUME)
+    expect(volume).toBeGreaterThan(0)
+    expect(volume).toBeLessThanOrEqual(1)
     expect(seen.runs[0]?.argv).toContain('-File')
-    expect(seen.runs[0]?.argv.at(-1)).toMatch(/scripts[\\/]popup\.ps1$/)
+    expect(seen.runs[0]?.argv.at(-1)).toMatch(/scripts[\\/]chime\.ps1$/)
   })
 
-  test('the status line clears after five seconds', async ($, on) => {
-    const seen = record(on)
-    const clock = mock.clock(on)
+  describe('visuals are off for now', () => {
+    const BAND = {
+      hasSurvey: false,
+      isWorking: false,
+      maxRows: 6,
+      bodyColumns: 80,
+      scroll: { offset: 0, bodyRows: 6 },
+      view: {},
+    } as const
 
-    await $.turn.complete({ ...TURN })
-    await clock.advance(4999)
-    expect(seen.statuses).toEqual(['Task complete'])
+    test('no toast and no status line entry', async ($, on) => {
+      const seen = record(on)
+      mock.clock(on)
 
-    await clock.advance(1)
-    expect(seen.statuses).toEqual(['Task complete', undefined])
+      await $.turn.complete({ ...TURN })
+
+      expect(seen.toasts).toEqual([])
+      expect(seen.statuses).toEqual([])
+    })
+
+    test('no banner above the prompt', async ($, on) => {
+      record(on)
+      mock.clock(on)
+      await $.turn.complete({ ...TURN })
+
+      const band = await $.ui.mount({
+        plugin: 'task-chime',
+        surface: 'desktop',
+        component: 'AbovePrompt',
+        props: BAND,
+      })
+
+      expect(await band.find({ type: 'Text', text: /Task complete/ })).toBeUndefined()
+    })
   })
 
   test('an interrupted turn stays silent', async ($, on) => {
@@ -76,8 +108,6 @@ describe('task-chime', () => {
 
     await $.turn.complete({ ...TURN, reason: 'aborted', isAborted: true })
 
-    expect(seen.toasts).toEqual([])
-    expect(seen.statuses).toEqual([])
     expect(seen.clips).toEqual([])
     expect(seen.runs).toEqual([])
   })
@@ -88,8 +118,8 @@ describe('task-chime', () => {
 
     await $.turn.complete({ ...TURN, reason: 'error' })
 
-    expect(seen.toasts).toEqual([])
     expect(seen.clips).toEqual([])
+    expect(seen.runs).toEqual([])
   })
 
   test('a subagent turn stays silent', async ($, on) => {
@@ -98,7 +128,6 @@ describe('task-chime', () => {
 
     await $.turn.complete({ ...TURN, agentId: 'helper-1' })
 
-    expect(seen.toasts).toEqual([])
     expect(seen.clips).toEqual([])
     expect(seen.runs).toEqual([])
   })
