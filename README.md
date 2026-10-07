@@ -20,7 +20,7 @@ A [Claude Code](https://claude.com/claude-code) mod that plays a short sound whe
 Clone the repository, then start Claude Code with the folder as a plugin:
 
 ```bash
-git clone <this repository's URL> task-chime
+git clone https://github.com/ialoni66/task-chime.git
 claude --plugin-dir ./task-chime
 ```
 
