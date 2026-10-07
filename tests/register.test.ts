@@ -11,7 +11,18 @@ const TURN = {
 
 // Records what the mod asks the engine to show or play, beneath the mod.
 function record(on: On) {
-  const seen = { toasts: [] as string[], statuses: [] as (string | undefined)[], clips: [] as unknown[] }
+  const seen = {
+    toasts: [] as string[],
+    statuses: [] as (string | undefined)[],
+    clips: [] as unknown[],
+    runs: [] as { argv: readonly string[]; env?: Record<string, string> }[],
+  }
+  on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }) as never)
+  // The popup is a spawned child (it outlives the hook); record it and end it cleanly.
+  on('process.spawn', async function* (_$, e) {
+    seen.runs.push({ argv: e.argv, env: e.env })
+    return { value: { code: 0, signal: null } }
+  } as never)
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   // These events carry no value; { value: undefined } is how a hook says "handled".
   on('ui.toast', (_$, e) => { seen.toasts.push(e.text); return { value: undefined } as never })
@@ -32,6 +43,19 @@ describe('task-chime', () => {
     expect(seen.statuses).toEqual(['Task complete'])
     expect(seen.clips).toHaveLength(1)
     expect(seen.clips[0]).toMatchObject({ asset: 'assets/notification.mp3' })
+  })
+
+  test('a finished answer opens the centered popup with the sound file', async ($, on) => {
+    const seen = record(on)
+    mock.clock(on)
+
+    await $.turn.complete({ ...TURN })
+
+    expect(seen.runs).toHaveLength(1)
+    expect(seen.runs[0]?.argv[0]).toBe('powershell.exe')
+    expect(seen.runs[0]?.env?.CHIME_SOUND).toMatch(/assets[\\/]notification\.mp3$/)
+    expect(seen.runs[0]?.argv).toContain('-File')
+    expect(seen.runs[0]?.argv.at(-1)).toMatch(/scripts[\\/]popup\.ps1$/)
   })
 
   test('the status line clears after five seconds', async ($, on) => {
@@ -55,6 +79,7 @@ describe('task-chime', () => {
     expect(seen.toasts).toEqual([])
     expect(seen.statuses).toEqual([])
     expect(seen.clips).toEqual([])
+    expect(seen.runs).toEqual([])
   })
 
   test('a failed turn stays silent', async ($, on) => {
@@ -75,6 +100,7 @@ describe('task-chime', () => {
 
     expect(seen.toasts).toEqual([])
     expect(seen.clips).toEqual([])
+    expect(seen.runs).toEqual([])
   })
 
   test('the answer text passes through unchanged', async ($, on) => {

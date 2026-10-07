@@ -18,7 +18,8 @@ Out of scope for v0.1: permission-request alerts, error alerts, custom sound pic
 claude-noti-mod/
 ├── .claude-plugin/plugin.json   # name, version, description
 ├── hooks/hooks.json             # { "modules": ["./register.tsx"] }
-├── hooks/register.tsx           # hooks: sound + visual on completion
+├── hooks/register.tsx           # turn.complete hook: toast, status, sound, popup
+├── scripts/popup.ps1            # Windows centered popup + sound (no keyboard focus)
 ├── assets/                      # sound file(s) played via $.audio.play({ asset })
 ├── types/index.d.ts             # only if the mod keeps $.state
 └── CLAUDE.md
@@ -26,7 +27,7 @@ claude-noti-mod/
 
 ## How it works (to verify while building)
 - Candidate trigger: the `turn.complete` event. Confirm it fires when a task finishes, not on every step (`turn.step`).
-- Sound: `$.audio.play({ asset })`, with the audio file stored in `assets/`.
+- Sound: `$.audio.play` plays nothing on Windows/Linux, so on Windows `scripts/popup.ps1` (run via `$.process.spawn`) plays the mp3 and shows the popup. `spawn`, not `run`: a plain `run` is cut off when the hook returns.
 - Visual: `$.ui.toast(text)` and/or `$.ui.status(text)`. Clear the status entry after a short delay.
 - The API types are the source of truth. Grep them for the exact event and method names before using them.
 
