@@ -1,6 +1,6 @@
 {
   "name": "task-chime",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Plays a sound and shows a banner above the prompt when a task is complete.",
   "author": { "name": "Ilai Aloni" },
   "types": "./types/index.d.ts"

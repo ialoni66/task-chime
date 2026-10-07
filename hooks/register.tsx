@@ -19,6 +19,14 @@ const VOLUME = 0.75
 const isBannerShown = atom({ plugin: 'task-chime', key: 'isBannerShown' } as const, false)
 
 export const register: Register = on => {
+  // The banner flag and status line outlive a reload, but the timers that clear them
+  // do not. Clear any leftover when the mod loads (a reload fires session.start again).
+  on('session.start', async ($, e, next) => {
+    await update($, isBannerShown, () => false)
+    $.ui.status(undefined)
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
 
@@ -44,6 +52,9 @@ export const register: Register = on => {
     // Windows: scripts/chime.ps1 plays the mp3 with no window. spawn, not run: a
     // spawned child and its loop outlive the hook's return, so the turn is never held up.
     void (async () => {
+      // PowerShell and the Windows media player exist only on Windows (it sets OS=Windows_NT).
+      // Elsewhere skip quietly: macOS plays the clip through audio.play above.
+      if ((await $.env.get('OS')) !== 'Windows_NT') return
       try {
         const child = $.process.spawn({
           argv: [
@@ -83,7 +94,7 @@ export const register: Register = on => {
 
   // The banner: shown above the prompt while isBannerShown is true.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || !(await read($, isBannerShown))) return next(e)
+    if (!SHOW_VISUALS || e.props.hasSurvey || !(await read($, isBannerShown))) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
 

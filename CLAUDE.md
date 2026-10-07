@@ -56,4 +56,4 @@ claude-noti-mod/
 - [x] Add on-screen effect
 - [ ] Add mute option
 - [x] Write tests and validate
-- [ ] README and license before publishing
+- [x] README and license (MIT, code only; sound credited separately)

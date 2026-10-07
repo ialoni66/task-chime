@@ -10,7 +10,9 @@ const TURN = {
 } as const
 
 // Records what the mod asks the engine to show or play, beneath the mod.
-function record(on: On) {
+function record(on: On, env: Record<string, string> = { OS: 'Windows_NT' }) {
+  mock.env(on, env)
+  const clock = mock.clock(on)
   const seen = {
     toasts: [] as string[],
     statuses: [] as (string | undefined)[],
@@ -33,15 +35,15 @@ function record(on: On) {
     const { Box } = $.ui.resolve(e)
     return <Box />
   })
-  return seen
+  return { ...seen, settle: () => clock.settle() }
 }
 
 describe('task-chime', () => {
   test('a finished answer plays the sound', async ($, on) => {
     const seen = record(on)
-    mock.clock(on)
 
     const result = await $.turn.complete({ ...TURN })
+    await seen.settle()
 
     expect(result.text).toBe('done')
     expect(seen.clips).toHaveLength(1)
@@ -50,9 +52,9 @@ describe('task-chime', () => {
 
   test('a finished answer runs the sound script with the mp3, lead-in and volume', async ($, on) => {
     const seen = record(on)
-    mock.clock(on)
 
     await $.turn.complete({ ...TURN })
+    await seen.settle()
 
     expect(seen.runs).toHaveLength(1)
     expect(seen.runs[0]?.argv[0]).toBe('powershell.exe')
@@ -64,6 +66,17 @@ describe('task-chime', () => {
     expect(volume).toBeLessThanOrEqual(1)
     expect(seen.runs[0]?.argv).toContain('-File')
     expect(seen.runs[0]?.argv.at(-1)).toMatch(/scripts[\\/]chime\.ps1$/)
+  })
+
+  test('off Windows it skips PowerShell and still asks the engine to play the clip', async ($, on) => {
+    const seen = record(on, {})
+
+    await $.turn.complete({ ...TURN })
+    await seen.settle()
+
+    expect(seen.runs).toEqual([])
+    expect(seen.toasts).toEqual([])
+    expect(seen.clips).toHaveLength(1)
   })
 
   describe('visuals are off for now', () => {
@@ -78,9 +91,9 @@ describe('task-chime', () => {
 
     test('no toast and no status line entry', async ($, on) => {
       const seen = record(on)
-      mock.clock(on)
 
       await $.turn.complete({ ...TURN })
+    await seen.settle()
 
       expect(seen.toasts).toEqual([])
       expect(seen.statuses).toEqual([])
@@ -88,7 +101,6 @@ describe('task-chime', () => {
 
     test('no banner above the prompt', async ($, on) => {
       record(on)
-      mock.clock(on)
       await $.turn.complete({ ...TURN })
 
       const band = await $.ui.mount({
@@ -102,11 +114,20 @@ describe('task-chime', () => {
     })
   })
 
+  test('loading the mod clears a leftover status line entry', async ($, on) => {
+    const seen = record(on)
+    on('session.start', (_$, e) => ({ cwd: e.cwd }))
+
+    await $.session.start({ cwd: '/work', surface: 'desktop', isInteractive: true })
+
+    expect(seen.statuses).toEqual([undefined])
+  })
+
   test('an interrupted turn stays silent', async ($, on) => {
     const seen = record(on)
-    mock.clock(on)
 
     await $.turn.complete({ ...TURN, reason: 'aborted', isAborted: true })
+    await seen.settle()
 
     expect(seen.clips).toEqual([])
     expect(seen.runs).toEqual([])
@@ -114,9 +135,9 @@ describe('task-chime', () => {
 
   test('a failed turn stays silent', async ($, on) => {
     const seen = record(on)
-    mock.clock(on)
 
     await $.turn.complete({ ...TURN, reason: 'error' })
+    await seen.settle()
 
     expect(seen.clips).toEqual([])
     expect(seen.runs).toEqual([])
@@ -124,9 +145,9 @@ describe('task-chime', () => {
 
   test('a subagent turn stays silent', async ($, on) => {
     const seen = record(on)
-    mock.clock(on)
 
     await $.turn.complete({ ...TURN, agentId: 'helper-1' })
+    await seen.settle()
 
     expect(seen.clips).toEqual([])
     expect(seen.runs).toEqual([])
@@ -134,7 +155,6 @@ describe('task-chime', () => {
 
   test('the answer text passes through unchanged', async ($, on) => {
     record(on)
-    mock.clock(on)
 
     const result = await $.turn.complete({ ...TURN, answer: 'all good' })
 
