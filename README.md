@@ -17,14 +17,23 @@ A [Claude Code](https://claude.com/claude-code) mod that plays a short sound whe
 
 ## Install
 
-Clone the repository, then start Claude Code with the folder as a plugin:
+**For every session (recommended).** Add this repository as a marketplace and install the plugin. It then loads in all your sessions, including the ones the Claude desktop app starts:
+
+```bash
+claude plugin marketplace add ialoni66/task-chime
+claude plugin install task-chime@task-chime
+```
+
+Start a new session, or run `/reload-plugins` in an open one. To remove it later: `claude plugin uninstall task-chime@task-chime`.
+
+I tested this route with a marketplace pointing at a local clone of this repository. Adding it straight from GitHub (the command above) uses the same mechanism but I have not run it from a second machine.
+
+**Just try it for one session:**
 
 ```bash
 git clone https://github.com/ialoni66/task-chime.git
 claude --plugin-dir ./task-chime
 ```
-
-I developed and tested it in the Claude desktop app's Code tab with mod hot-reloading. I haven't tested other install routes, so if `--plugin-dir` doesn't suit your setup, check the Claude Code plugin docs.
 
 Check that it loads:
 

@@ -1,0 +1,12 @@
+{
+  "name": "task-chime",
+  "owner": { "name": "Ilai Aloni" },
+  "description": "A Claude Code mod that plays a sound when a task is complete.",
+  "plugins": [
+    {
+      "name": "task-chime",
+      "source": "./",
+      "description": "Plays a sound when a Claude Code task is complete, with a /chime settings pane."
+    }
+  ]
+}
