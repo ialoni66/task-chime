@@ -65,6 +65,7 @@ Type `/chime` in Claude Code to open the settings pane. It shows each setting wi
 | `3` / `4` | Fewer / more loudness copies |
 | `5` / `6` | Shorter / longer Bluetooth wake-up delay |
 | `v` | Turn on-screen signals on / off |
+| `r` | Show / hide the quick controls row |
 | `t` | Play test chime (plays even when muted) |
 
 The same settings are also rows in the `/config` menu in the terminal version of Claude Code. The desktop app has no `/config`, which is why the pane exists. Either way, changing a setting reloads the mod with the new value, and the pane reopens by itself.
@@ -76,6 +77,7 @@ The same settings are also rows in the `/config` menu in the terminal version of
 | Loudness boost (1-4) | 2 | Identical copies played together. More is louder but can distort. |
 | Bluetooth wake-up delay (ms) | 1000 | Silence played before the chime, 0 to 3000. Raise it if a Bluetooth headset still misses the start. |
 | Show on-screen signals | off | Shows a banner above the prompt, a toast, and a status line entry |
+| Show the quick controls row | on | A one-line row above the prompt: sound state, Mute and Settings buttons |
 
 Values outside a setting's range are refused. The settings are also stored in your Claude Code settings under `pluginConfigs`, keyed by the plugin name.
 

@@ -76,12 +76,21 @@ const change = async ($: any, field: string, value: boolean | number) => {
   }
 }
 
+// Opens the settings pane; used by /chime and by the quick row's Settings button.
+const openSettings = async ($: any) => {
+  await update($, isSettingsOpen, () => true)
+  await update($, note, () => '')
+  await $.ui.open({ id: PANE, title: 'Task chime' })
+}
+
 // The user's settings are declared as userConfig in plugin.json, so they also live in the
 // /config menu where there is one. The desktop app has none, so /chime opens a pane that
 // changes the same settings. A change reloads the mod, so they are read once here.
 export const register: Register = (on, options) => {
   const isMuted = options.muted === true
   const showVisuals = options.showVisuals === true
+  // On unless the person turned it off.
+  const showQuickRow = options.showQuickRow !== false
   const settings: Settings = {
     volumePercent: Math.round(setting(options.volume, 75, 0, 100)),
     copies: Math.round(setting(options.copies, 2, 1, 4)),
@@ -102,9 +111,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'chime' }, async $ => {
-    await update($, isSettingsOpen, () => true)
-    await update($, note, () => '')
-    await $.ui.open({ id: PANE, title: 'Task chime' })
+    await openSettings($)
 
     return { text: 'Task chime settings opened.' }
   })
@@ -136,16 +143,32 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  // The banner: shown above the prompt while isBannerShown is true.
+  // The row above the prompt: the "Task complete" banner while it is showing, and the
+  // quick controls (sound state, Mute, Settings) while that row is switched on.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!showVisuals || e.props.hasSurvey || !(await read($, isBannerShown))) return next(e)
+    if (e.props.hasSurvey) return next(e)
+
+    const isBanner = showVisuals && (await read($, isBannerShown))
+    if (!isBanner && !showQuickRow) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
 
     return (
-      <Box>
-        <Text bold>Task complete </Text>
-        <Button key="dismiss" label="Dismiss" onPress={() => update($, isBannerShown, () => false)} />
+      <Box flexDirection="column">
+        {isBanner && (
+          <Box>
+            <Text bold>Task complete </Text>
+            <Button key="dismiss" label="Dismiss" onPress={() => update($, isBannerShown, () => false)} />
+          </Box>
+        )}
+        {showQuickRow && (
+          <Box>
+            <Text dimColor>{`Chime: ${isMuted ? 'muted' : 'on'}   `}</Text>
+            <Button key="quick-mute" label={isMuted ? 'Unmute' : 'Mute'} onPress={() => change($, 'muted', !isMuted)} />
+            <Text> </Text>
+            <Button key="quick-settings" label="Settings" onPress={() => openSettings($)} />
+          </Box>
+        )}
       </Box>
     )
   })
@@ -186,6 +209,10 @@ export const register: Register = (on, options) => {
         <Box>
           <Text>{`On-screen signals: ${showVisuals ? 'on' : 'off'}   `}</Text>
           <Button key="visuals" hotkey="v" label={showVisuals ? 'Turn off' : 'Turn on'} onPress={() => change($, 'showVisuals', !showVisuals)} />
+        </Box>
+        <Box>
+          <Text>{`Quick controls row above the prompt: ${showQuickRow ? 'on' : 'off'}   `}</Text>
+          <Button key="quick-row" hotkey="r" label={showQuickRow ? 'Hide' : 'Show'} onPress={() => change($, 'showQuickRow', !showQuickRow)} />
         </Box>
         <Box>
           <Button key="test" hotkey="t" variant="primary" label="Play test chime" onPress={() => playChime($, settings)} />

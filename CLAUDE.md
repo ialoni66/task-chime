@@ -55,5 +55,6 @@ claude-noti-mod/
 - [x] Add sound
 - [x] Add on-screen effect
 - [x] Add mute option and a /config settings menu
+- [x] Quick controls row above the prompt (showQuickRow, default on): sound state, Mute, Settings; shares the AbovePrompt hook with the banner
 - [x] Write tests and validate
 - [x] README and license (MIT, code only; sound credited separately)

@@ -1,6 +1,6 @@
 {
   "name": "task-chime",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Plays a sound, with optional on-screen signals, when a task is complete.",
   "author": { "name": "Ilai Aloni" },
   "types": "./types/index.d.ts",
@@ -40,6 +40,12 @@
       "title": "Show on-screen signals",
       "description": "Show a banner above the prompt, a toast, and a status line entry when a task finishes.",
       "default": false
+    },
+    "showQuickRow": {
+      "type": "boolean",
+      "title": "Show the quick controls row",
+      "description": "Show a one-line row above the prompt with the sound state and Mute and Settings buttons.",
+      "default": true
     }
   }
 }

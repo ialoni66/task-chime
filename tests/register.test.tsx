@@ -221,7 +221,8 @@ describe('task-chime', () => {
         expect(await pane.find({ type: 'Text', text: /Loudness boost: 2 copies/ })).toBeDefined()
         expect(await pane.find({ type: 'Text', text: /wake-up delay: 1000 ms/ })).toBeDefined()
         expect(await pane.find({ type: 'Text', text: /On-screen signals: off/ })).toBeDefined()
-        for (const key of ['mute', 'volume-down', 'volume-up', 'copies-down', 'copies-up', 'lead-down', 'lead-up', 'visuals', 'test']) {
+        expect(await pane.find({ type: 'Text', text: /Quick controls row above the prompt: on/ })).toBeDefined()
+        for (const key of ['mute', 'volume-down', 'volume-up', 'copies-down', 'copies-up', 'lead-down', 'lead-up', 'visuals', 'quick-row', 'test']) {
           expect(await pane.find({ type: 'Button', key })).toBeDefined()
         }
       }
@@ -313,6 +314,101 @@ describe('task-chime', () => {
       expect(seen.clips).toHaveLength(1)
       expect(seen.runs).toHaveLength(1)
       expect(seen.changes).toEqual([])
+    })
+  })
+
+  describe('quick controls row above the prompt', () => {
+    const BAND = {
+      hasSurvey: false,
+      isWorking: false,
+      maxRows: 6,
+      bodyColumns: 80,
+      scroll: { offset: 0, bodyRows: 6 },
+      view: {},
+    } as const
+    const mountBand = ($: any, surface: 'terminal' | 'desktop' = 'desktop', props: object = BAND) =>
+      $.ui.mount({ plugin: 'task-chime', surface, component: 'AbovePrompt', props })
+
+    test('shows the sound state with Mute and Settings buttons, on by default', async ($, on) => {
+      record(on)
+
+      for (const surface of ['terminal', 'desktop'] as const) {
+        const band = await mountBand($, surface)
+        expect(await band.find({ type: 'Text', text: /Chime: on/ })).toBeDefined()
+        expect(await band.find({ type: 'Button', key: 'quick-mute' })).toBeDefined()
+        expect(await band.find({ type: 'Button', key: 'quick-settings' })).toBeDefined()
+      }
+    })
+
+    test('says muted and offers Unmute when muted', { options: { muted: true } }, async ($, on) => {
+      record(on)
+
+      const band = await mountBand($)
+
+      expect(await band.find({ type: 'Text', text: /Chime: muted/ })).toBeDefined()
+      expect(await band.find({ type: 'Button', key: 'quick-mute', text: /Unmute/ })).toBeDefined()
+    })
+
+    test('Mute sets muted to true, Unmute sets it back', async ($, on) => {
+      const seen = record(on)
+      const band = await mountBand($)
+
+      await band.press({ key: 'quick-mute' })
+
+      expect(seen.changes).toEqual([{ key: 'task-chime.muted', value: true }])
+    })
+
+    test('Settings opens the settings pane', async ($, on) => {
+      const seen = record(on)
+      const band = await mountBand($)
+
+      await band.press({ key: 'quick-settings' })
+
+      expect(seen.opened).toEqual(['task-chime-settings'])
+    })
+
+    test('can be switched off in settings', { options: { showQuickRow: false } }, async ($, on) => {
+      record(on)
+
+      const band = await mountBand($)
+
+      expect(await band.find({ type: 'Text', text: /Chime:/ })).toBeUndefined()
+      expect(await band.find({ type: 'Button', key: 'quick-mute' })).toBeUndefined()
+    })
+
+    test('steps aside while a survey holds the row', async ($, on) => {
+      record(on)
+
+      const band = await mountBand($, 'desktop', { ...BAND, hasSurvey: true })
+
+      expect(await band.find({ type: 'Text', text: /Chime:/ })).toBeUndefined()
+    })
+
+    test('shares the row with the banner when on-screen signals are on', { options: { showVisuals: true } }, async ($, on) => {
+      const seen = record(on)
+      await $.turn.complete({ ...TURN })
+      await seen.settle()
+
+      const band = await mountBand($)
+
+      expect(await band.find({ type: 'Text', text: /Task complete/ })).toBeDefined()
+      expect(await band.find({ type: 'Button', key: 'dismiss' })).toBeDefined()
+      expect(await band.find({ type: 'Text', text: /Chime: on/ })).toBeDefined()
+    })
+
+    test('the pane button turns the row off', async ($, on) => {
+      const seen = record(on)
+      const pane = await $.ui.mount({
+        plugin: 'task-chime',
+        surface: 'desktop',
+        component: 'Pane',
+        requestId: 'task-chime-settings',
+        props: { title: 'Task chime', isFocused: false, bodyColumns: 60, placement: 'inline', scroll: { offset: 0, bodyRows: 10 }, view: {} },
+      })
+
+      await pane.press({ key: 'quick-row' })
+
+      expect(seen.changes).toEqual([{ key: 'task-chime.showQuickRow', value: false }])
     })
   })
 
